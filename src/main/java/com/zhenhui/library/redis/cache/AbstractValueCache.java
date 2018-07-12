@@ -108,4 +108,14 @@ public class AbstractValueCache<K, V> extends CacheSupport<K, V> {
             }
         }
     }
+
+    public void evict(K key) {
+        Jedis jedis = commandSupport.getResource();
+        try {
+            jedis.del(encodeKey(key));
+        } finally {
+            jedis.close();
+        }
+    }
 }
+

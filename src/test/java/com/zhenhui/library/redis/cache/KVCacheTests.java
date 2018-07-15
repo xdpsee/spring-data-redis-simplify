@@ -1,6 +1,7 @@
 package com.zhenhui.library.redis.cache;
 
-import com.zhenhui.library.redis.cache.support.SerializerProvider;
+import com.zhenhui.library.redis.serializer.Serializer;
+import com.zhenhui.library.redis.serializer.StringSerializer;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -15,6 +16,7 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNull;
 
 @RunWith(SpringJUnit4ClassRunner.class)
 @ContextConfiguration(locations = "classpath:test-context.xml")
@@ -22,17 +24,26 @@ public class KVCacheTests extends AbstractJUnit4SpringContextTests {
 
 
     @Component
-    public static class KeyValueTestCache extends AbstractValueCache<Integer, String> {
+    public static class KeyValueTest extends AbstractValue<Integer, String> {
 
-        @Autowired
-        public KeyValueTestCache(SerializerProvider<Integer, String> serializer) {
-            super("KeyValueTestCache", serializer, 3, TimeUnit.SECONDS);
+        public KeyValueTest() {
+            super("KeyValueTest", new Serializer<Integer>() {
+                @Override
+                public String serialize(Integer v) {
+                    return String.valueOf(v);
+                }
+
+                @Override
+                public Integer deserialize(String v) {
+                    return Integer.valueOf(v);
+                }
+            }, new StringSerializer(), 3, TimeUnit.SECONDS);
         }
 
     }
 
     @Autowired
-    private KeyValueTestCache keyValueTestCache;
+    private KeyValueTest keyValueTestCache;
 
     @Test
     public void testNormal() {
@@ -42,13 +53,12 @@ public class KVCacheTests extends AbstractJUnit4SpringContextTests {
         String value = keyValueTestCache.get(1024);
 
         assertEquals("hello", value);
-
-    }
+        }
 
     @Test
     public void testMulti() {
 
-        Map<Integer, String> result = keyValueTestCache.multiGet(Arrays.asList(1,2,3,4,5));
+        Map<Integer, String> result = keyValueTestCache.get(Arrays.asList(1,2,3,4,5));
         assertEquals(0, result.size());
 
         Map<Integer, String> tuples = new HashMap<>();
@@ -56,11 +66,41 @@ public class KVCacheTests extends AbstractJUnit4SpringContextTests {
         tuples.put(2, "2");
         tuples.put(3, "3");
 
-        keyValueTestCache.multiPut(tuples);
+        keyValueTestCache.put(tuples);
 
-        result = keyValueTestCache.multiGet(Arrays.asList(1,2,3,4,5));
+        result = keyValueTestCache.get(Arrays.asList(1,2,3,4,5));
         assertEquals(3, result.size());
 
+    }
+
+    @Test
+    public void testExpire() {
+
+        keyValueTestCache.put(1024, "hello");
+
+        String value = keyValueTestCache.get(1024);
+
+        assertEquals("hello", value);
+
+        try {
+            Thread.sleep(3000);
+            value = keyValueTestCache.get(1024);
+            assertNull(value);
+        } catch (InterruptedException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    @Test
+    public void testEvict() {
+        keyValueTestCache.put(1024, "hello");
+
+        String value = keyValueTestCache.get(1024);
+
+        assertEquals("hello", value);
+
+        keyValueTestCache.evict(1024);
+        assertNull(keyValueTestCache.get(1024));
     }
 
 }

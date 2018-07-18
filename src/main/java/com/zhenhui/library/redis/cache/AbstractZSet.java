@@ -36,7 +36,7 @@ public abstract class AbstractZSet<K, M> extends CommandSupport {
     public Double score(K key, M member) {
         Jedis jedis = jedisPool.getResource();
         try {
-            return jedis.zscore(keySupport.serializeAsString(key), memberSupport.serializeAsString(member));
+            return jedis.zscore(keySupport.encodeKeyAsString(key), memberSupport.serializeAsString(member));
         } finally {
             jedis.close();
         }
@@ -45,7 +45,7 @@ public abstract class AbstractZSet<K, M> extends CommandSupport {
     public void add(K key, M member, double score) {
         Jedis jedis = jedisPool.getResource();
         try {
-            jedis.zadd(keySupport.serializeAsString(key), score, memberSupport.serializeAsString(member));
+            jedis.zadd(keySupport.encodeKeyAsString(key), score, memberSupport.serializeAsString(member));
         } finally {
             jedis.close();
         }
@@ -60,7 +60,7 @@ public abstract class AbstractZSet<K, M> extends CommandSupport {
         try {
             Map<String, Double> tuples = new HashMap<>();
             memberScores.forEach((k, v) -> tuples.put(memberSupport.serializeAsString(k), v));
-            jedis.zadd(keySupport.serializeAsString(key), tuples);
+            jedis.zadd(keySupport.encodeKeyAsString(key), tuples);
         } finally {
             jedis.close();
         }
@@ -69,6 +69,34 @@ public abstract class AbstractZSet<K, M> extends CommandSupport {
     public void add(K key, Collection<Member<M>> members) {
         add(key, members.stream()
                 .collect(Collectors.toMap(Member::getValue, Member::getScore)));
+    }
+
+    public void remove(K key, M member) {
+        Jedis jedis = jedisPool.getResource();
+        try {
+            Long ret = jedis.zrem(keySupport.encodeKey(key), memberSupport.serialize(member));
+            System.out.print(ret);
+        } finally {
+            jedis.close();
+        }
+    }
+
+    public int count(K key) {
+        Jedis jedis = jedisPool.getResource();
+        try {
+            return jedis.zcard(keySupport.encodeKey(key)).intValue();
+        } finally {
+            jedis.close();
+        }
+    }
+
+    public int count(K key, double min, double max) {
+        Jedis jedis = jedisPool.getResource();
+        try {
+            return jedis.zcount(keySupport.encodeKey(key), min, max).intValue();
+        } finally {
+            jedis.close();
+        }
     }
 
     public List<M> top(K key, int limit, boolean ascending) {
@@ -90,13 +118,13 @@ public abstract class AbstractZSet<K, M> extends CommandSupport {
                     min = offsetScore;
                 }
 
-                members = jedis.zrangeByScore(keySupport.serializeAsString(key), min, max, 0, limit);
+                members = jedis.zrangeByScore(keySupport.encodeKeyAsString(key), min, max, 0, limit);
             } else {
                 if (offsetScore != null) {
                     max = offsetScore;
                 }
 
-                members = jedis.zrevrangeByScore(keySupport.serializeAsString(key), max, min, 0, limit);
+                members = jedis.zrevrangeByScore(keySupport.encodeKeyAsString(key), max, min, 0, limit);
             }
 
             result.addAll(members.stream().map(memberSupport::deserialize).collect(Collectors.toList()));
@@ -127,13 +155,13 @@ public abstract class AbstractZSet<K, M> extends CommandSupport {
                     min = offsetScore;
                 }
 
-                members = jedis.zrangeByScoreWithScores(keySupport.serializeAsString(key), min, max, 0, limit);
+                members = jedis.zrangeByScoreWithScores(keySupport.encodeKeyAsString(key), min, max, 0, limit);
             } else {
                 if (offsetScore != null) {
                     max = offsetScore;
                 }
 
-                members = jedis.zrevrangeByScoreWithScores(keySupport.serializeAsString(key), max, min, 0, limit);
+                members = jedis.zrevrangeByScoreWithScores(keySupport.encodeKeyAsString(key), max, min, 0, limit);
             }
 
             result.addAll(members.stream()
@@ -146,6 +174,15 @@ public abstract class AbstractZSet<K, M> extends CommandSupport {
         }
 
         return result;
+    }
+
+    public void evict(K key) {
+        Jedis jedis = jedisPool.getResource();
+        try {
+            jedis.del(keySupport.encodeKey(key));
+        } finally {
+            jedis.close();
+        }
     }
 
 }

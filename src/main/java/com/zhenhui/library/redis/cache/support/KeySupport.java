@@ -6,7 +6,7 @@ import redis.clients.jedis.Jedis;
 import java.nio.charset.Charset;
 import java.util.concurrent.TimeUnit;
 
-public class KeySupport<K> extends SerializeSupport<K> {
+public class KeySupport<K> {
 
     public static final Charset UTF8 = Charset.forName("UTF-8");
     private static final String PREFIX_SPLITTER_IN_RAW_KEY = "|";
@@ -15,14 +15,20 @@ public class KeySupport<K> extends SerializeSupport<K> {
     private final int expires;
     private final TimeUnit timeUnit;
 
+    private final SerializeSupport<K> serializeSupport;
+
     public KeySupport(String prefix, Serializer<K> serializer, int expires, TimeUnit timeUnit) {
-        super(serializer);
+        this.serializeSupport = new SerializeSupport<>(serializer);
         this.prefix = prefix;
         this.expires = expires;
         this.timeUnit = timeUnit;
     }
 
     public byte[] encodeKey(K key) {
+        return encodeKeyAsString(key).getBytes(UTF8);
+    }
+
+    public String encodeKeyAsString(K key) {
         if (null == key) {
             throw new IllegalArgumentException("key == null");
         }
@@ -30,8 +36,8 @@ public class KeySupport<K> extends SerializeSupport<K> {
         return String.format("%s%s%s"
                 , prefix
                 , PREFIX_SPLITTER_IN_RAW_KEY
-                , serializeAsString(key)
-        ).getBytes(UTF8);
+                , serializeSupport.serializeAsString(key)
+        );
     }
 
     public K decodeKey(byte[] rawKey) {
@@ -45,7 +51,7 @@ public class KeySupport<K> extends SerializeSupport<K> {
             throw new IllegalArgumentException("invalid raw key");
         }
 
-        return deserialize(rawKeyStr.substring(index + 1));
+        return serializeSupport.deserialize(rawKeyStr.substring(index + 1));
     }
 
     public int defaultExpireSeconds() {

@@ -115,6 +115,15 @@ public class AbstractValue<K, V> extends CommandSupport {
         }
     }
 
+    public boolean exist(K key) {
+        Jedis jedis = jedisPool.getResource();
+        try {
+            return jedis.exists(keySupport.encodeKey(key));
+        } finally {
+            jedis.close();
+        }
+    }
+
     public void evict(K key) {
         Jedis jedis = jedisPool.getResource();
         try {
